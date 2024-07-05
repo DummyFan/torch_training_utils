@@ -287,3 +287,8 @@ def nn_regular_training(X, y, selected_model, lr, batch_size, epochs, model_save
     print(test_report)
     print(f'Test score: {test_score}')
     return best_val_score, test_score
+
+
+# This is a test function for testing git functions
+def git_test():
+    return
