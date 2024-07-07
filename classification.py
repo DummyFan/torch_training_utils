@@ -6,7 +6,7 @@ import torch.nn as nn
 from sklearn.metrics import f1_score, classification_report
 from sklearn.model_selection import StratifiedKFold, LeaveOneOut
 import matplotlib.pyplot as plt
-import data_utils
+import torch_training_utils.data_utils as data_utils
 import models
 from tqdm import tqdm
 
