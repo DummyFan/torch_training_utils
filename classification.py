@@ -1,5 +1,4 @@
 import copy
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -224,22 +223,22 @@ def nn_loo_cv(dataset, model, lr, batch_size, epochs, device):
             classification_report(y_true, val_preds, digits=4))
 
 
-def nn_regular_training(X, y, selected_model, lr, batch_size, epochs, model_save_name, device):
-    best_val_loss = np.Inf
-    counter = 0
-
-    # 定义模型，需要特别设置数据中的通道数和信号长度
-    model = models.CNN(in_channels=X.shape[1], sig_length=X.shape[2], n_classes=len(np.unique(y))).to(device)
-
+def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, device, split_ratio=[.6, .2, .2], patience=10):
     # 计算标签权重（针对标签不平衡）
     class_weights = get_class_weights(y).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
+    # 装载数据
+    train_loader, val_loader, test_loader = data_utils.get_loaders(X, y, batch_size, split_ratio=split_ratio)
+
+    # 记录损失与分类分数
+    best_val_loss = np.Inf
+    best_val_score = 0
+    counter = 0
     train_losses, train_scores = [], []
     val_losses, val_scores = [], []
 
-    train_loader, val_loader, test_loader = data_utils.get_loaders(X, y, batch_size)
     for epoch in range(epochs):
         train_loss, train_score = train(model, train_loader, optimizer, criterion, device)  # 模型训练
         val_loss, val_score = validate(model, val_loader, criterion, device)  # 模型验证
@@ -255,40 +254,28 @@ def nn_regular_training(X, y, selected_model, lr, batch_size, epochs, model_save
         val_losses.append(val_loss)
         val_scores.append(val_score)
 
-    #         # 检查是否提前停止
-    #         if val_loss < best_val_loss:
-    #             best_val_loss = val_loss
-    #             best_val_score = val_score
-    #             counter = 0
-    #             # 验证损失达到新低点时保存模型，保存的模型名字及路径可以在下方第二个参数内修改，需要以.pt结尾
-    #             torch.save(model.state_dict(), model_save_name)
-    #         else:
-    #             counter += 1
+        # 检查是否提前停止
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_val_score = val_score
+            counter = 0
+            # 验证损失达到新低点时保存模型
+            torch.save(model.state_dict(), model_save_name)
+        else:
+            counter += 1
 
-    #         if counter >= patience:
-    #             print(f'Early stopping after {epoch + 1} epochs')
-    #             break
-
-    # 训练至最后时刻
-    torch.save(model.state_dict(), model_save_name)
-    best_val_loss = val_losses[-1]
-    best_val_score = val_scores[-1]
+        if counter >= patience:
+            print(f'Early stopping after {epoch + 1} epochs')
+            break
 
     # 绘制学习曲线
     plot_learning_curves(train_losses, train_scores, val_losses, val_scores)
-    print(f'Best validation score: {best_val_score}')
+    print(f'Saved model validation score: {best_val_score}')
 
     # 读取训练过程中保存的最优模型，在测试集上检验模型表现
-    model = models.CNN(in_channels=X.shape[1], sig_length=X.shape[2], n_classes=len(np.unique(y))).to(device)
-
     model.load_state_dict(torch.load(model_save_name))
-    test_report, test_score = test(model, test_loader, device)
+    test_report, test_score = test(model, test_loader, device)  # 模型测试
     print('Model result on test set')
     print(test_report)
     print(f'Test score: {test_score}')
-    return best_val_score, test_score
-
-
-# This is a test function for testing git functions
-def git_test():
-    return
+    return best_val_loss, best_val_score, test_score, test_report
