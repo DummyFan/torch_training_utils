@@ -130,7 +130,7 @@ def plot_learning_curves(train_losses, train_scores, val_losses, val_scores, mar
     plt.show()
 
 
-# 绘制AUC曲线
+# 绘制ROC曲线
 def plot_roc_curves(y_true, y_score):
     n_classes = y_true.shape[1]
 
