@@ -2,12 +2,14 @@ import copy
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import f1_score, classification_report
+from sklearn.metrics import (f1_score, classification_report,
+                             roc_auc_score, roc_curve, auc, RocCurveDisplay)
 from sklearn.model_selection import StratifiedKFold, LeaveOneOut
 import matplotlib.pyplot as plt
 import torch_training_utils.data_utils as data_utils
-import models
 from tqdm import tqdm
+from itertools import cycle
+from scipy import interp
 
 
 def train(model, train_loader, optimizer, criterion, device):
@@ -33,7 +35,7 @@ def train(model, train_loader, optimizer, criterion, device):
         train_loss += loss.item()
 
     train_loss /= len(train_loader)
-    train_score = f1_score(y_true, y_pred, average='weighted')
+    train_score = f1_score(y_true, y_pred, average='macro')
     return train_loss, train_score
 
 
@@ -57,7 +59,7 @@ def validate(model, data_loader, criterion, device):
             y_pred.extend(pred.cpu().tolist())
 
     val_loss /= len(data_loader)
-    val_score = f1_score(y_true, y_pred, average='weighted')
+    val_score = f1_score(y_true, y_pred, average='macro')
     return val_loss, val_score
 
 
@@ -77,11 +79,11 @@ def test(model, data_loader, device):
             y_pred.extend(pred.cpu().tolist())
 
     test_report = classification_report(y_true, y_pred, digits=4)
-    test_score = f1_score(y_true, y_pred, average='weighted')
+    test_score = f1_score(y_true, y_pred, average='macro')
     return test_report, test_score
 
 
-def predict(model, data_loader, criterion, device):
+def predict(model, data_loader, criterion, device, return_prob=False):
     model.eval()
     y_pred = []
     avg_loss = 0.0
@@ -94,15 +96,18 @@ def predict(model, data_loader, criterion, device):
             loss = criterion(outputs, targets.float())
             avg_loss += loss.item()
 
-            pred = outputs.argmax(1)
-            y_pred.extend(pred.cpu().tolist())
+            if not return_prob:
+                pred = outputs.argmax(1)
+                y_pred.extend(pred.cpu().tolist())
+            else:
+                y_pred.extend(outputs.cpu().tolist())
 
     avg_loss /= len(data_loader)
     return avg_loss, y_pred
 
 
 # 绘制训练、验证曲线
-def plot_learning_curves(train_losses, train_scores, val_losses, val_scores, vlines_x=None):
+def plot_learning_curves(train_losses, train_scores, val_losses, val_scores, mark_minimum=True):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
     fig.suptitle('Learning Curves')
     x = range(len(train_losses))
@@ -116,10 +121,80 @@ def plot_learning_curves(train_losses, train_scores, val_losses, val_scores, vli
     ax2.set_xlabel('Epochs')
     plt.legend(loc="lower right")
 
-    if vlines_x:
-        ax1.axvline(x=vlines_x, color='red', linestyle='dashed')
-        ax2.axvline(x=vlines_x, color='red', linestyle='dashed')
+    # 红色虚线标记验证损失最低点
+    if mark_minimum:
+        min_loss_pos = np.argmin(train_losses)
+        ax1.axvline(x=min_loss_pos, color='red', linestyle='dashed')
+        ax2.axvline(x=min_loss_pos, color='red', linestyle='dashed')
 
+    plt.show()
+
+
+# 绘制AUC曲线
+def plot_roc_curves(y_true, y_score):
+    n_classes = y_true.shape[1]
+
+    # store the fpr, tpr, and roc_auc for all averaging strategies
+    fpr, tpr, roc_auc = dict(), dict(), dict()
+    # Compute micro-average ROC curve and ROC area
+    fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_score.ravel())
+    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+
+    for i in range(n_classes):
+        fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_score[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+
+    fpr_grid = np.linspace(0.0, 1.0, 1000)
+
+    # Interpolate all ROC curves at these points
+    mean_tpr = np.zeros_like(fpr_grid)
+
+    for i in range(n_classes):
+        mean_tpr += np.interp(fpr_grid, fpr[i], tpr[i])  # linear interpolation
+
+    # Average it and compute AUC
+    mean_tpr /= n_classes
+
+    fpr["macro"] = fpr_grid
+    tpr["macro"] = mean_tpr
+    roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    plt.plot(
+        fpr["micro"],
+        tpr["micro"],
+        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
+        color="deeppink",
+        linestyle=":",
+        linewidth=4,
+    )
+
+    plt.plot(
+        fpr["macro"],
+        tpr["macro"],
+        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
+        color="navy",
+        linestyle=":",
+        linewidth=4,
+    )
+
+    colors = cycle(["aqua", "darkorange", "cornflowerblue"])
+    for class_id, color in zip(range(n_classes), colors):
+        RocCurveDisplay.from_predictions(
+            y_true[:, class_id],
+            y_score[:, class_id],
+            name=f"ROC curve for class {class_id}",
+            color=color,
+            ax=ax,
+            plot_chance_level=(class_id == 2),
+        )
+
+    _ = ax.set(
+        xlabel="False Positive Rate",
+        ylabel="True Positive Rate",
+        title="ROC to One-vs-Rest multiclass",
+    )
     plt.show()
 
 
@@ -182,7 +257,7 @@ def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs, device):
 
 
 # 留一交叉验证
-def nn_loo_cv(dataset, model, lr, batch_size, epochs, device):
+def nn_loo_cv(dataset, model, lr, batch_size, epochs, device, plot_roc=False):
     # 提取真标签
     y_true = dataset.get_1d_labels()
     # 计算标签权重（针对标签不平衡）
@@ -211,16 +286,20 @@ def nn_loo_cv(dataset, model, lr, batch_size, epochs, device):
             epoch_val_loss, _ = validate(model_optim, val_loader, criterion, device)  # 模型验证
             cv_val_loss.append(epoch_val_loss)  # 添加每个epoch的验证损失
 
-        val_loss, val_pred = predict(model_optim, val_loader, criterion, device)  # 使用训练后的模型预测验证集标签
+        val_loss, val_pred = predict(model_optim, val_loader, criterion, device, return_prob=True)  # 使用训练后的模型预测验证集标签
         # 记录过程中的验证损失、分类结果和验证损失最低的epoch
         val_losses.append(val_loss)
-        val_preds += val_pred
+        val_preds.extend(val_pred)
         min_val_indices.append(np.argmin(cv_val_loss))
 
+    one_hot_labels = np.array(dataset.labels)
+    val_preds = np.array(val_preds)
     # 计算验证指标
-    val_scores = f1_score(y_true, val_preds, average='weighted')
+    val_scores = roc_auc_score(one_hot_labels, val_preds, multi_class='ovr')
+    if plot_roc:
+        plot_roc_curves(one_hot_labels, val_preds)
     return (np.mean(val_losses), np.mean(val_scores), np.array(min_val_indices),
-            classification_report(y_true, val_preds, digits=4))
+            classification_report(y_true, np.argmax(val_preds, axis=1), digits=4))
 
 
 def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, device,
