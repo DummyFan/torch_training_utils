@@ -223,14 +223,16 @@ def nn_loo_cv(dataset, model, lr, batch_size, epochs, device):
             classification_report(y_true, val_preds, digits=4))
 
 
-def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, device, split_ratio=[.6, .2, .2], patience=10):
+def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, device,
+                        split_ratio=[.6, .2, .2], patience=10, verbose=0):
     # 计算标签权重（针对标签不平衡）
     class_weights = get_class_weights(y).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # 装载数据
-    train_loader, val_loader, test_loader = data_utils.get_loaders(X, y, batch_size, split_ratio=split_ratio)
+    train_loader, val_loader, test_loader = data_utils.get_loaders(
+        X, y, batch_size, split_ratio=split_ratio, verbose=verbose)
 
     # 记录损失与分类分数
     best_val_loss = np.Inf
@@ -242,11 +244,13 @@ def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, de
     for epoch in range(epochs):
         train_loss, train_score = train(model, train_loader, optimizer, criterion, device)  # 模型训练
         val_loss, val_score = validate(model, val_loader, criterion, device)  # 模型验证
-        print("EPOCH: {}/{}".format(epoch + 1, epochs))
-        print("Train loss: {:.6f}, Train F1: {:.4f}".format(
-            train_loss, train_score))
-        print("Val loss: {:.6f}, Val F1: {:.4f}\n".format(
-            val_loss, val_score))
+
+        if verbose:
+            print("EPOCH: {}/{}".format(epoch + 1, epochs))
+            print("Train loss: {:.6f}, Train F1: {:.4f}".format(
+                train_loss, train_score))
+            print("Val loss: {:.6f}, Val F1: {:.4f}\n".format(
+                val_loss, val_score))
 
         # 记录过程中的训练、验证损失和分类指标
         train_losses.append(train_loss)
@@ -265,17 +269,20 @@ def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, de
             counter += 1
 
         if counter >= patience:
-            print(f'Early stopping after {epoch + 1} epochs')
+            if verbose:
+                print(f'Early stopping after {epoch + 1} epochs')
             break
-
-    # 绘制学习曲线
-    plot_learning_curves(train_losses, train_scores, val_losses, val_scores)
-    print(f'Saved model validation score: {best_val_score}')
 
     # 读取训练过程中保存的最优模型，在测试集上检验模型表现
     model.load_state_dict(torch.load(model_save_name))
     test_report, test_score = test(model, test_loader, device)  # 模型测试
-    print('Model result on test set')
-    print(test_report)
-    print(f'Test score: {test_score}')
+
+    if verbose:
+        print('Model result on test set')
+        print(test_report)
+        print(f'Test score: {test_score}')
+        # 绘制学习曲线
+        plot_learning_curves(train_losses, train_scores, val_losses, val_scores)
+        print(f'Saved model validation score: {best_val_score}')
+
     return best_val_loss, best_val_score, test_score, test_report
