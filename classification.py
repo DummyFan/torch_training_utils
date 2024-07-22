@@ -164,7 +164,7 @@ def plot_roc_curves(y_true, y_score):
     plt.plot(
         fpr["micro"],
         tpr["micro"],
-        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
+        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.4f})",
         color="deeppink",
         linestyle=":",
         linewidth=4,
@@ -173,7 +173,7 @@ def plot_roc_curves(y_true, y_score):
     plt.plot(
         fpr["macro"],
         tpr["macro"],
-        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
+        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.4f})",
         color="navy",
         linestyle=":",
         linewidth=4,
@@ -193,7 +193,6 @@ def plot_roc_curves(y_true, y_score):
     _ = ax.set(
         xlabel="False Positive Rate",
         ylabel="True Positive Rate",
-        title="ROC to One-vs-Rest multiclass",
     )
     plt.show()
 
