@@ -38,7 +38,7 @@ def get_class_distribution(full_labels, subset, name):
 
 
 # 分割训练、验证、测试集，装载torch dataloader
-def get_loaders(data, labels, batch_size, verbose, split_ratio=[0.6, 0.2, 0.2], seed=42):
+def get_loaders(data, labels, batch_size, verbose, split_ratio, seed=42):
     dataset = EEG_Dataset(data, labels)
     generator = torch.Generator().manual_seed(seed)
     # 分割训练验证测试集，比例通过split_ratio调整
@@ -52,3 +52,19 @@ def get_loaders(data, labels, batch_size, verbose, split_ratio=[0.6, 0.2, 0.2], 
     val_loader = DataLoader(val, batch_size=batch_size)
     test_loader = DataLoader(test, batch_size=batch_size)
     return train_loader, val_loader, test_loader
+
+
+# 分割训练、测试集，装载torch dataloader
+def get_train_test_loaders(data, labels, batch_size, verbose, split_ratio, seed=42):
+    dataset = EEG_Dataset(data, labels)
+    generator = torch.Generator().manual_seed(seed)
+    # 分割训练测试集，比例通过split_ratio调整
+    train, test = random_split(dataset, split_ratio, generator=generator)
+
+    if verbose:
+        for subset, name in zip([train, test], ['Train', 'Test']):
+            get_class_distribution(labels, subset, name)
+
+    train_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test, batch_size=batch_size)
+    return train_loader, test_loader
