@@ -1,3 +1,4 @@
+import os
 import copy
 import numpy as np
 import torch
@@ -7,6 +8,7 @@ from sklearn.metrics import (f1_score, classification_report,
 from sklearn.model_selection import StratifiedKFold, LeaveOneOut
 import matplotlib.pyplot as plt
 import torch_training_utils.data_utils as data_utils
+from torch_training_utils.utils import set_device, seed_everything
 from tqdm import tqdm
 from itertools import cycle
 from scipy import interp
@@ -131,7 +133,7 @@ def plot_learning_curves(train_losses, train_scores, val_losses, val_scores, mar
 
 
 # 绘制ROC曲线
-def plot_roc_curves(y_true, y_score):
+def plot_roc_curves(y_true, y_score, save_name=None):
     n_classes = y_true.shape[1]
 
     # store the fpr, tpr, and roc_auc for all averaging strategies
@@ -164,7 +166,7 @@ def plot_roc_curves(y_true, y_score):
     plt.plot(
         fpr["micro"],
         tpr["micro"],
-        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
+        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.4f})",
         color="deeppink",
         linestyle=":",
         linewidth=4,
@@ -173,7 +175,7 @@ def plot_roc_curves(y_true, y_score):
     plt.plot(
         fpr["macro"],
         tpr["macro"],
-        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
+        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.4f})",
         color="navy",
         linestyle=":",
         linewidth=4,
@@ -193,9 +195,13 @@ def plot_roc_curves(y_true, y_score):
     _ = ax.set(
         xlabel="False Positive Rate",
         ylabel="True Positive Rate",
-        title="ROC to One-vs-Rest multiclass",
     )
-    plt.show()
+
+    if save_name:
+        save_path = './plots/'
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+        plt.savefig(save_path + save_name + '.png')
 
 
 # 根据类别比例提取类别权重
@@ -206,7 +212,9 @@ def get_class_weights(labels):
 
 
 # k折交叉验证
-def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs, device):
+def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs):
+    seed_everything()
+    device = set_device()
     # 定义交叉验证损失与分数
     cv_losses = []
     cv_scores = []
@@ -222,6 +230,7 @@ def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs, device):
         print(f"Fold {fold + 1}")
         # 定义模型，需要特别设置数据中的通道数和信号长度
         model_optim = copy.deepcopy(model)  # 复制初始模型，防止重复训练
+        model_optim.to(device)
         criterion = nn.CrossEntropyLoss(weight=class_weights)  # 加类别权重损失函数
         optimizer = torch.optim.Adam(model_optim.parameters(), lr=lr)
 
@@ -257,7 +266,9 @@ def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs, device):
 
 
 # 留一交叉验证
-def nn_loo_cv(dataset, model, lr, batch_size, epochs, device, plot_roc=False):
+def nn_loo_cv(dataset, model, lr, batch_size, epochs, plot_name=None):
+    seed_everything()
+    device = set_device()
     # 提取真标签
     y_true = dataset.get_1d_labels()
     # 计算标签权重（针对标签不平衡）
@@ -273,6 +284,7 @@ def nn_loo_cv(dataset, model, lr, batch_size, epochs, device, plot_roc=False):
         train_idx = list(range(len(dataset))).remove(val_idx)
 
         model_optim = copy.deepcopy(model)  # 复制初始模型，防止重复训练
+        model_optim.to(device)
         criterion = nn.CrossEntropyLoss(weight=class_weights)  # 加类别权重损失函数
         optimizer = torch.optim.Adam(model_optim.parameters(), lr=lr)
 
@@ -296,16 +308,19 @@ def nn_loo_cv(dataset, model, lr, batch_size, epochs, device, plot_roc=False):
     val_preds = np.array(val_preds)
     # 计算验证指标
     val_scores = roc_auc_score(one_hot_labels, val_preds, multi_class='ovr')
-    if plot_roc:
-        plot_roc_curves(one_hot_labels, val_preds)
+    if plot_name:
+        plot_roc_curves(one_hot_labels, val_preds, save_name=plot_name)
     return (np.mean(val_losses), np.mean(val_scores), np.array(min_val_indices),
             classification_report(y_true, np.argmax(val_preds, axis=1), digits=4))
 
 
-def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, device,
+def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name,
                         split_ratio=[.6, .2, .2], patience=10, verbose=0):
+    seed_everything()
+    device = set_device()
     # 计算标签权重（针对标签不平衡）
     class_weights = get_class_weights(y).to(device)
+    model.to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -365,3 +380,48 @@ def nn_regular_training(X, y, model, lr, batch_size, epochs, model_save_name, de
         print(f'Saved model validation score: {best_val_score}')
 
     return best_val_loss, best_val_score, test_score, test_report
+
+
+def nn_train_test(X, y, model, lr, batch_size, epochs, split_ratio=[.7, .3], plot_name=None, verbose=0):
+    seed_everything()
+    device = set_device()
+    # 计算标签权重（针对标签不平衡）
+    class_weights = get_class_weights(y).to(device)
+    model.to(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    # 装载数据
+    train_loader, test_loader = data_utils.get_train_test_loaders(
+        X, y, batch_size, split_ratio=split_ratio, verbose=verbose)
+
+    train_losses, train_scores = [], []
+    for epoch in range(epochs):
+        train_loss, train_score = train(model, train_loader, optimizer, criterion, device)  # 模型训练
+
+        if verbose:
+            print("EPOCH: {}/{}".format(epoch + 1, epochs))
+            print("Train loss: {:.6f}, Train F1: {:.4f}".format(
+                train_loss, train_score))
+
+        # 记录过程中的训练、验证损失和分类指标
+        train_losses.append(train_loss)
+        train_scores.append(train_score)
+
+    test_report, _ = test(model, test_loader, device)  # 模型测试
+    test_loss, test_preds = predict(model, test_loader, criterion, device, return_prob=True)
+
+    # 计算AUC指标
+    test_labels = np.array(y)[test_loader.dataset.indices]
+    one_hot_labels = np.eye(len(np.unique(y)))[test_labels]
+    test_preds = np.array(test_preds)
+    test_auc = roc_auc_score(one_hot_labels, test_preds, multi_class='ovr')
+    if plot_name:
+        plot_roc_curves(one_hot_labels, test_preds, save_name=plot_name)
+
+    if verbose:
+        print('Model result on test set')
+        print(test_report)
+        print(f'Test score: {test_auc}')
+
+    return test_loss, test_auc, test_report
