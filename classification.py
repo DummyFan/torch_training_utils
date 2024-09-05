@@ -37,7 +37,7 @@ def train(model, train_loader, optimizer, criterion, device):
         train_loss += loss.item()
 
     train_loss /= len(train_loader)
-    train_score = f1_score(y_true, y_pred, average='macro')
+    train_score = f1_score(y_true, y_pred, average='macro', zero_division=0.0)
     return train_loss, train_score
 
 
@@ -61,7 +61,7 @@ def validate(model, data_loader, criterion, device):
             y_pred.extend(pred.cpu().tolist())
 
     val_loss /= len(data_loader)
-    val_score = f1_score(y_true, y_pred, average='macro')
+    val_score = f1_score(y_true, y_pred, average='macro', zero_division=0.0)
     return val_loss, val_score
 
 
@@ -80,8 +80,8 @@ def test(model, data_loader, device):
             y_true.extend(true.cpu().tolist())
             y_pred.extend(pred.cpu().tolist())
 
-    test_report = classification_report(y_true, y_pred, digits=4)
-    test_score = f1_score(y_true, y_pred, average='macro')
+    test_report = classification_report(y_true, y_pred, digits=4, zero_division=0.0)
+    test_score = f1_score(y_true, y_pred, average='macro', zero_division=0.0)
     return test_report, test_score
 
 
@@ -267,7 +267,7 @@ def nn_kfold_cv(n_splits, dataset, model, lr, batch_size, epochs):
 
 # 留一交叉验证
 def nn_loo_cv(dataset, model, lr, batch_size, epochs, plot_name=None):
-    seed_everything()
+    # seed_everything()
     device = set_device()
     # 提取真标签
     y_true = dataset.get_1d_labels()
@@ -425,3 +425,33 @@ def nn_train_test(X, y, model, lr, batch_size, epochs, split_ratio=[.7, .3], plo
         print(f'Test score: {test_auc}')
 
     return test_loss, test_auc, test_report
+
+
+def nn_train_save_model(X, y, model, lr, batch_size, epochs, model_name):
+    seed_everything()
+    device = set_device()
+
+    # 标签权重
+    class_weights = get_class_weights(y).to(device)
+    model.to(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    # 装载数据
+    dataset = data_utils.EEG_Dataset(X, y)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    # 开始训练
+    train_losses, train_scores = [], []
+    for epoch in range(epochs):
+        train_loss, train_score = train(model, data_loader, optimizer, criterion, device)
+        train_losses.append(train_loss)
+        train_scores.append(train_score)
+
+    # 保存模型参数
+    save_path = './saved_models/'
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    torch.save(model, save_path + model_name + '.pt')
+    print(f'Model training completed, train loss: {train_losses[-1]}, train_score: {train_scores[-1]}')
+    print('Saved model to {}'.format(save_path + model_name + '.pt'))
