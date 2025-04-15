@@ -2,8 +2,10 @@ import os
 import random
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 
+# set seed for all random processes
 def seed_everything(seed=42):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -16,8 +18,16 @@ def seed_everything(seed=42):
     torch.backends.cudnn.deterministic = True
 
 
+# set cuda device when available
 def set_device():
-    # GPU可用时优先调用GPU加速训练
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f'Using {device} device')
     return device
+
+
+# set global plot parameters
+def configure_plot_parameters(fonts=['Times New Roman', 'SimSun'], fontsize=12):
+    plt.rcParams['font.family'] = fonts
+    plt.rcParams['font.size'] = fontsize
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.rcParams['font.weight'] = 'normal'
