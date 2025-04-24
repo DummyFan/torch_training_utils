@@ -6,6 +6,7 @@ from torch_training_utils.utils import set_device
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
+from datetime import datetime
 
 
 class ClassificationTrainer:
@@ -42,6 +43,7 @@ class ClassificationTrainer:
         self.metric_params = metric_params
         self.device = set_device()
         self.model.to(self.device)
+        self.start_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
         self.log_path = save_paths['log_path']
         self.model_path = save_paths['model_path']
@@ -192,7 +194,7 @@ class ClassificationTrainer:
 
         test_score = self.metric(y_true, y_pred, **self.metric_params)
         self.plot_confusion_matrix(y_true, y_pred)
-        return test_loss, test_score, y_out
+        return test_loss, test_score, y_pred, y_out
 
     def predict(self, data_loader, return_prob=False):
         """
@@ -290,7 +292,7 @@ class ClassificationTrainer:
 
         # Load the best model
         self.model.load_state_dict(torch.load(self.model_path / 'best_model.pt'))
-        self.test_loss, self.test_score, self.test_out = self.test(self.test_loader)
+        self.test_loss, self.test_score, self.test_pred, self.test_out = self.test(self.test_loader)
 
         if print_results:
             print(f'Test loss: {self.test_loss}')
@@ -329,7 +331,7 @@ class ClassificationTrainer:
             ax1.axvline(x=min_loss_pos, color='red', linestyle='dashed')
             ax2.axvline(x=min_loss_pos, color='red', linestyle='dashed')
 
-        plt.savefig(self.fig_path / f'learning_curve.png')
+        plt.savefig(self.fig_path / f'{self.start_time}_learning_curve.png')
         plt.show()
 
     def plot_confusion_matrix(
@@ -360,6 +362,6 @@ class ClassificationTrainer:
 
         if title:
             plt.title(title)
-        plt.savefig(self.fig_path / f'confusion_matrix.png')
+        plt.savefig(self.fig_path / f'{self.start_time}_confusion_matrix.png')
         plt.show()
 
