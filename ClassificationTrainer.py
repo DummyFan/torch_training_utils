@@ -171,7 +171,8 @@ class ClassificationTrainer:
             Evaluation metric score on the test data.
 
         y_out : list
-            Raw model outputs (probabilities or logits), provided for purposes like computing the AUC score.
+            Raw model outputs (probabilities or logits), provided for purposes like computing
+            the AUC score.
         """
         self.model.eval()
         y_true, y_pred, y_out = [], [], []
@@ -278,7 +279,7 @@ class ClassificationTrainer:
                     best_val_score = val_score
                     counter = 0
                     # Save model whenever validation loss reaches a new minimum
-                    torch.save(self.model.state_dict(), self.model_path / 'best_model.pt')
+                    torch.save(self.model.state_dict(), self.model_path / f'{self.start_time}.pt')
                 else:
                     counter += 1
 
@@ -291,7 +292,7 @@ class ClassificationTrainer:
                     break
 
         # Load the best model
-        self.model.load_state_dict(torch.load(self.model_path / 'best_model.pt'))
+        self.model.load_state_dict(torch.load(self.model_path / f'{self.start_time}.pt'))
         self.test_loss, self.test_score, self.test_pred, self.test_out = self.test(self.test_loader)
 
         if print_results:
@@ -300,7 +301,8 @@ class ClassificationTrainer:
 
     def plot_learning_curves(self, metric_name, fig_size=(10, 5), mark_minimum=True):
         """
-        Plots the learning curves for training and validation.
+        Plots the learning curves for training and validation. optionally marks the epoch
+        with the minimum validation loss for reference.
 
         Parameters
         ----------
@@ -313,7 +315,7 @@ class ClassificationTrainer:
         mark_minimum : bool, default=True
             Whether to mark the epoch with the minimum validation loss with a vertical line.
         """
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=fig_size)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=fig_size, layout='constrained')
         fig.suptitle('Learning Curves')
         x = range(len(self.train_losses))
         ax1.plot(x, self.train_losses, label='Train')
@@ -345,6 +347,35 @@ class ClassificationTrainer:
             cmap='Blues',
             title=None
     ):
+        """
+        Plot a confusion matrix using Seaborn heatmap visualization.
+
+        Parameters
+        ----------
+        y_true : array-like of shape (n_samples,)
+            Ground truth (correct) target values.
+
+        y_pred : array-like of shape (n_samples,)
+            Estimated targets as returned by a classifier.
+
+        categories : list of str or 'auto', default='auto'
+            Labels to display on the axes. If 'auto', uses numeric class labels from the data.
+
+        xyticks : bool, default=True
+            Whether to display tick labels (categories) on the x and y axes.
+
+        xyplotlabels : bool, default=True
+            Whether to display axis labels ("True label" and "Predicted label").
+
+        figsize : tuple of int, default=(5, 5)
+            Size of the figure in inches (width, height).
+
+        cmap : str or matplotlib Colormap, default='Blues'
+            Colormap used for the heatmap. See `matplotlib.pyplot.colormaps()` for options.
+
+        title : str or None, default=None
+            Title for the confusion matrix plot.
+        """
         cf = confusion_matrix(y_true, y_pred)
         # SET FIGURE PARAMETERS ACCORDING TO OTHER ARGUMENTS
         if not xyticks:
