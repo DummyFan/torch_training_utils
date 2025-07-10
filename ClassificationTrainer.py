@@ -111,6 +111,7 @@ class ClassificationTrainer:
             train_loss += loss.item()
 
         train_loss /= len(data_loader)
+        train_loss = np.inf if np.isnan(train_loss) else train_loss
         train_score = self.metric(y_true, y_pred, **self.metric_params)
         return train_loss, train_score
 
@@ -150,6 +151,7 @@ class ClassificationTrainer:
                 y_pred.extend(pred.cpu().tolist())
 
         val_loss /= len(data_loader)
+        val_loss = np.inf if np.isnan(val_loss) else val_loss
         val_score = self.metric(y_true, y_pred, **self.metric_params)
         return val_loss, val_score
 
@@ -211,32 +213,23 @@ class ClassificationTrainer:
 
         Returns
         -------
-        avg_loss : float
-            Average loss across the dataset.
-
         y_pred : list
             Predicted class indices or raw probabilities.
         """
         self.model.eval()
         y_pred = []
-        avg_loss = 0.0
 
         with torch.no_grad():
             for data, targets in data_loader:
                 data, targets = data.to(self.device), targets.to(self.device)
                 outputs = self.model(data)
-
-                loss = self.criterion(outputs, targets.float())
-                avg_loss += loss.item()
-
                 if not return_prob:
                     pred = outputs.argmax(1)
                     y_pred.extend(pred.cpu().tolist())
                 else:
                     y_pred.extend(outputs.cpu().tolist())
 
-        avg_loss /= len(data_loader)
-        return avg_loss, y_pred
+        return y_pred
 
     def fit_holdout(self, epochs, patience=10, print_results=True):
         """
@@ -291,6 +284,7 @@ class ClassificationTrainer:
                         print(f'Best val score: {best_val_score}\n')
                     break
 
+    def compute_test_results(self, print_results=True):
         # Load the best model
         self.model.load_state_dict(torch.load(self.model_path / f'{self.start_time}.pt'))
         self.test_loss, self.test_score, self.test_pred, self.test_out = self.test(self.test_loader)
