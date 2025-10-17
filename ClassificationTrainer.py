@@ -337,7 +337,7 @@ class ClassificationTrainer:
             categories='auto',
             xyticks=True,
             xyplotlabels=True,
-            figsize=(3, 3),
+            figsize=(4, 4),
             cmap='Blues',
             title=None
     ):
