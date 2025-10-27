@@ -251,6 +251,7 @@ class ClassificationTrainer:
         counter = 0
         self.train_losses, self.train_scores = [], []
         self.val_losses, self.val_scores = [], []
+        self.stop_epoch = 0
 
         with tqdm(range(epochs), unit='epoch') as tepoch:
             for epoch in tepoch:
@@ -267,19 +268,21 @@ class ClassificationTrainer:
                                    val_loss=val_loss, val_score=val_score)
 
                 # Check early stopping criteria
-                if val_loss < best_val_loss:
+                if best_val_loss > val_loss > train_loss:
                     best_val_loss = val_loss
                     best_val_score = val_score
                     counter = 0
+                    self.stop_epoch = epoch
                     # Save model whenever validation loss reaches a new minimum
                     torch.save(self.model.state_dict(), self.model_path / f'{self.start_time}.pt')
                 else:
                     counter += 1
 
                 # Terminates training at patience limit
-                if counter >= patience:
+                if counter >= patience and best_val_loss < np.inf:
                     if print_results:
                         print(f'Early stopped after {epoch + 1} epochs')
+                        print(f'Best result at epoch {self.stop_epoch}')
                         print(f'Best val loss: {best_val_loss}')
                         print(f'Best val score: {best_val_score}\n')
                     break
@@ -323,7 +326,7 @@ class ClassificationTrainer:
         plt.legend(loc="lower right")
 
         if mark_minimum:
-            min_loss_pos = np.argmin(self.val_losses)
+            min_loss_pos = self.stop_epoch
             ax1.axvline(x=min_loss_pos, color='red', linestyle='dashed')
             ax2.axvline(x=min_loss_pos, color='red', linestyle='dashed')
 
