@@ -252,6 +252,8 @@ class ClassificationTrainer:
         self.train_losses, self.train_scores = [], []
         self.val_losses, self.val_scores = [], []
         self.stop_epoch = 0
+        # Save the initialized model first in case the criteria cannot be met
+        torch.save(self.model.state_dict(), self.model_path / f'{self.start_time}.pt')
 
         with tqdm(range(epochs), unit='epoch') as tepoch:
             for epoch in tepoch:
@@ -279,13 +281,21 @@ class ClassificationTrainer:
                     counter += 1
 
                 # Terminates training at patience limit
-                if counter >= patience and best_val_loss < np.inf:
-                    if print_results:
-                        print(f'Early stopped after {epoch + 1} epochs')
-                        print(f'Best result at epoch {self.stop_epoch}')
-                        print(f'Best val loss: {best_val_loss}')
-                        print(f'Best val score: {best_val_score}\n')
-                    break
+                if counter >= patience:
+                    train_loss_improvements = np.array(self.train_losses[-3]) - train_loss
+                    if best_val_loss < np.inf:
+                        if print_results:
+                            print(f'Early stopped after {epoch + 1} epochs')
+                            print(f'Best result at epoch {self.stop_epoch}')
+                            print(f'Best val loss: {best_val_loss}')
+                            print(f'Best val score: {best_val_score}\n')
+                        break
+                    # Terminate when training loss not improving
+                    elif (train_loss_improvements < 1e-4).all():
+                        if print_results:
+                            print(f'Early stopped after {epoch + 1} epochs')
+                            print(f'Training loss not improving')
+                        break
 
     def compute_test_results(self, print_results=True):
         # Load the best model
