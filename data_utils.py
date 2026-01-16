@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 
 # torch框架所需的数据集格式
-class EEG_Dataset(Dataset):
+class MyDataset(Dataset):
     def __init__(self, data, labels, extra_dim=None):
         self.data = torch.tensor(data, dtype=torch.float32)
         if extra_dim:
@@ -39,7 +39,7 @@ def get_class_distribution(full_labels, subset, name):
 
 # 分割训练、验证、测试集，装载torch dataloader
 def get_loaders(data, labels, batch_size, verbose, split_ratio, seed=42):
-    dataset = EEG_Dataset(data, labels)
+    dataset = MyDataset(data, labels)
     generator = torch.Generator().manual_seed(seed)
     # 分割训练验证测试集，比例通过split_ratio调整
     train, val, test = random_split(dataset, split_ratio, generator=generator)
@@ -56,7 +56,7 @@ def get_loaders(data, labels, batch_size, verbose, split_ratio, seed=42):
 
 # 分割训练、测试集，装载torch dataloader
 def get_train_test_loaders(data, labels, batch_size, verbose, split_ratio, seed=42):
-    dataset = EEG_Dataset(data, labels)
+    dataset = MyDataset(data, labels)
     generator = torch.Generator().manual_seed(seed)
     # 分割训练测试集，比例通过split_ratio调整
     train, test = random_split(dataset, split_ratio, generator=generator)

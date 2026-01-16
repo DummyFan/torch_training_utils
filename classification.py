@@ -438,7 +438,7 @@ def nn_train_save_model(X, y, model, lr, batch_size, epochs, model_name):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # 装载数据
-    dataset = data_utils.EEG_Dataset(X, y)
+    dataset = data_utils.MyDataset(X, y)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # 开始训练
