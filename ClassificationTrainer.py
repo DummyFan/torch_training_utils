@@ -1,3 +1,5 @@
+import os
+from csv import writer
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -305,6 +307,32 @@ class ClassificationTrainer:
         if print_results:
             print(f'Test loss: {self.test_loss}')
             print(f'Test score: {self.test_score}')
+
+    def record_results(self, log_file, log_dict):
+        """
+        Records the information from log_dict to log_file in log_path.
+
+        Parameters
+        ----------
+        log_file : str
+            Name of csv file to write to.
+
+        log_dict : dict
+            Dictionary containing information to be stored.
+        """
+        log_file_path = self.log_path / log_file
+        if not os.path.exists(log_file_path):
+            title = log_dict.keys()
+            with open(log_file_path, 'w', newline='') as f_object:
+                writer_object = writer(f_object)
+                writer_object.writerow(title)
+                f_object.close()
+
+        log_record = log_dict.values()
+        with open(log_file_path, 'a', newline='') as f_object:
+            writer_object = writer(f_object)
+            writer_object.writerow(log_record)
+            f_object.close()
 
     def plot_learning_curves(self, metric_name, fig_size=(10, 5), mark_minimum=True):
         """
