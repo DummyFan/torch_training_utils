@@ -44,6 +44,7 @@ class ClassificationTrainer:
         criterion,
         optimizer,
         metric,
+        device_id=None,
         metric_params=None,
         save_paths=None,
         task="multiclass",
@@ -62,7 +63,7 @@ class ClassificationTrainer:
                 f"task must be one of {sorted(self._valid_tasks)}, got {task!r}"
             )
 
-        self.device = set_device()
+        self.device = set_device(device_id)
         self.model.to(self.device)
         self.start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
