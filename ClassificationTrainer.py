@@ -547,7 +547,9 @@ class ClassificationTrainer:
             writer_object = writer(f_object)
             writer_object.writerow(log_record)
 
-    def plot_learning_curves(self, metric_name, fig_size=(10, 5), mark_minimum=True):
+    def plot_learning_curves(
+        self, metric_name, fig_size=(10, 5), mark_minimum=True, show_fig=False
+    ):
         """
         Plots the learning curves for training and validation. optionally marks the epoch
         with the minimum validation loss for reference.
@@ -583,7 +585,8 @@ class ClassificationTrainer:
             ax2.axvline(x=min_loss_pos, color="red", linestyle="dashed")
 
         plt.savefig(self.fig_path / f"{self.start_time}_learning_curve.png")
-        plt.show()
+        if show_fig:
+            plt.show()
 
     def plot_confusion_matrix(
         self,
@@ -595,6 +598,7 @@ class ClassificationTrainer:
         figsize=(4, 4),
         cmap="Blues",
         title=None,
+        show_fig=False,
     ):
         """
         Plot a confusion matrix using Seaborn heatmap visualization.
@@ -650,4 +654,5 @@ class ClassificationTrainer:
         if title:
             plt.title(title)
         plt.savefig(self.fig_path / f"{self.start_time}_confusion_matrix.png")
-        plt.show()
+        if show_fig:
+            plt.show()
