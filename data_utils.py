@@ -25,11 +25,11 @@ def _labels_to_indices(labels):
 
 def _split_lengths(n_samples, split_ratio, expected_parts):
     if len(split_ratio) != expected_parts:
-        raise ValueError(f'split_ratio must contain {expected_parts} values')
+        raise ValueError(f"split_ratio must contain {expected_parts} values")
 
     ratio = np.asarray(split_ratio, dtype=float)
     if np.any(ratio < 0):
-        raise ValueError('split_ratio cannot contain negative values')
+        raise ValueError("split_ratio cannot contain negative values")
 
     if np.isclose(ratio.sum(), n_samples) and np.all(np.equal(ratio, np.floor(ratio))):
         lengths = ratio.astype(int).tolist()
@@ -43,12 +43,14 @@ def _split_lengths(n_samples, split_ratio, expected_parts):
                 lengths[idx] += 1
         lengths = lengths.tolist()
     else:
-        raise ValueError('split_ratio must be integer lengths summing to n_samples or ratios summing to 1')
+        raise ValueError(
+            "split_ratio must be integer lengths summing to n_samples or ratios summing to 1"
+        )
 
     if sum(lengths) != n_samples:
-        raise ValueError('split lengths do not sum to the dataset size')
+        raise ValueError("split lengths do not sum to the dataset size")
     if any(length == 0 for length in lengths):
-        raise ValueError('all split lengths must be greater than zero')
+        raise ValueError("all split lengths must be greater than zero")
     return lengths
 
 
@@ -100,7 +102,7 @@ def _split_dataset(dataset, labels, split_ratio, expected_parts, seed, stratify)
             return _stratified_subsets(dataset, labels, lengths, seed)
         except ValueError as exc:
             warnings.warn(
-                f'Could not create a stratified split ({exc}); falling back to random_split.',
+                f"Could not create a stratified split ({exc}); falling back to random_split.",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -118,7 +120,9 @@ class MyDataset(Dataset):
             if labels.ndim > 1 and labels.shape[1] > 1:
                 self.labels = labels.float()
             else:
-                self.labels = nn.functional.one_hot(labels.long().reshape(-1), num_classes=num_classes).float()
+                self.labels = nn.functional.one_hot(
+                    labels.long().reshape(-1), num_classes=num_classes
+                ).float()
         else:
             if labels.ndim > 1 and labels.shape[1] > 1:
                 labels = labels.argmax(dim=1)
@@ -126,7 +130,7 @@ class MyDataset(Dataset):
 
         if len(self.data) != len(self.labels):
             raise ValueError(
-                'data and labels must have the same first dimension after extra_dim is applied'
+                "data and labels must have the same first dimension after extra_dim is applied"
             )
 
     def __len__(self):
@@ -143,31 +147,33 @@ class MyDataset(Dataset):
 
 
 def get_class_distribution(full_labels, subset, name):
-    print(f'{name} set distribution')
+    print(f"{name} set distribution")
     labels = _labels_to_indices(full_labels)
     subset_labels = labels[subset.indices]
     values, counts = np.unique(subset_labels, return_counts=True)
     for value, count in zip(values, counts):
-        print(f'{value}: {count}')
+        print(f"{value}: {count}")
 
 
 def get_loaders(
-        data,
-        labels,
-        batch_size,
-        verbose=False,
-        split_ratio=(0.7, 0.15, 0.15),
-        seed=42,
-        stratify=True,
-        one_hot=False,
-        num_classes=None,
-        extra_dim=None
+    data,
+    labels,
+    batch_size,
+    verbose=False,
+    split_ratio=(0.7, 0.15, 0.15),
+    seed=42,
+    stratify=True,
+    one_hot=False,
+    num_classes=None,
+    extra_dim=None,
 ):
-    dataset = MyDataset(data, labels, extra_dim=extra_dim, one_hot=one_hot, num_classes=num_classes)
+    dataset = MyDataset(
+        data, labels, extra_dim=extra_dim, one_hot=one_hot, num_classes=num_classes
+    )
     train, val, test = _split_dataset(dataset, labels, split_ratio, 3, seed, stratify)
 
     if verbose:
-        for subset, name in zip([train, val, test], ['Train', 'Validation', 'Test']):
+        for subset, name in zip([train, val, test], ["Train", "Validation", "Test"]):
             get_class_distribution(labels, subset, name)
 
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
@@ -177,22 +183,24 @@ def get_loaders(
 
 
 def get_train_test_loaders(
-        data,
-        labels,
-        batch_size,
-        verbose=False,
-        split_ratio=(0.7, 0.3),
-        seed=42,
-        stratify=True,
-        one_hot=False,
-        num_classes=None,
-        extra_dim=None
+    data,
+    labels,
+    batch_size,
+    verbose=False,
+    split_ratio=(0.7, 0.3),
+    seed=42,
+    stratify=True,
+    one_hot=False,
+    num_classes=None,
+    extra_dim=None,
 ):
-    dataset = MyDataset(data, labels, extra_dim=extra_dim, one_hot=one_hot, num_classes=num_classes)
+    dataset = MyDataset(
+        data, labels, extra_dim=extra_dim, one_hot=one_hot, num_classes=num_classes
+    )
     train, test = _split_dataset(dataset, labels, split_ratio, 2, seed, stratify)
 
     if verbose:
-        for subset, name in zip([train, test], ['Train', 'Test']):
+        for subset, name in zip([train, test], ["Train", "Test"]):
             get_class_distribution(labels, subset, name)
 
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
