@@ -32,6 +32,11 @@ def set_device(device_id=None):
     return device
 
 
+# count trainable parameters of a model, for compute-cost comparisons across architectures
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 # set global plot parameters
 def configure_plot_parameters(fonts=["Times New Roman", "SimSun"], fontsize=12):
     plt.rcParams["font.family"] = fonts
